@@ -89,19 +89,35 @@ tasksRouter.put("/:id", async (req, res) => {
         const data = await readFile(TASKS_FILE);
 
         // Find task by previous heading
-        const task = data.filter(task => task.heading === heading)[0];
+        const task = data.filter(task => task.heading === heading);
+        
+        // Task not found
+        if (task.length === 0){
+            return res.status(404).send("Task not found in database")
+        }
 
         // Change task
-        task.heading = newHeading;
-        task.description = newDescription;
+        task[0].heading = newHeading;
+        task[0].description = newDescription;
+        let completedSubtaskCount = 0
         newSubtasks.map(item => { // Set "task name" and "status" properties automatically - it should not happen in client side, it is happening here in backend
             item["task name"] = newHeading;
-            item["status"] = "Not completed";
+
+            // if subtask with same name existed before put request, it's status should not be lost:
+            const alreadyExists = task[0].subtasks.filter(taskItem => taskItem.name === item.name);
+            if (alreadyExists.length > 0) {
+                item["status"] = alreadyExists[0].status;
+
+                // it subtask was completed previously, variable will be incremented for correct number of "number of completed subtasks" property
+                if (alreadyExists[0].status === "Completed") completedSubtaskCount ++;
+            } else {
+                item["status"] = "Not completed";
+            }
         });
-        task.subtasks = newSubtasks;
-        task["subtasks count"] = newSubtasks.length; // This is automatically updated here, not in client side
-        task["number of completed subtasks"] = 0; // This is also updated here, it is set to 0 because none of new subtasks could be completed when they are added
-        task["current status"] = currentStatus;
+        task[0].subtasks = newSubtasks;
+        task[0]["subtasks count"] = newSubtasks.length; // This is automatically updated here, not in client side
+        task[0]["number of completed subtasks"] = completedSubtaskCount; // This is also updated here, it is set to the value of completedSubtaskCount variable
+        task[0]["current status"] = currentStatus;
 
         // Save changes to database
         await writeFile(TASKS_FILE, data);
