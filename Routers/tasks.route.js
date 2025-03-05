@@ -22,6 +22,7 @@ tasksRouter.get("/", async (req, res) => {
     }
 })
 
+// id is task's heading property
 tasksRouter.get("/:id", async (req, res) => {
     const heading = req.params.id;
     try {
@@ -41,6 +42,7 @@ tasksRouter.get("/:id", async (req, res) => {
     }
 })
 
+// Just to add task
 tasksRouter.post("/", async (req, res) => {
     // board, column, heading, description and currentStatus are required for task to have. subtasks will first be set to 0 and []. They will be changed in future by client
     const { board, column, heading, description } = req.body;
@@ -66,6 +68,74 @@ tasksRouter.post("/", async (req, res) => {
 
         res.status(200).send("New task added to database successfully");
     } catch(e) {
-        return res.status(400).send("Error on request:", e)
+        return res.status(400).send(`Error on request: ${e}`)
+    }
+})
+
+// task's put request
+// heading, description, subtasks and status are necessary
+// in subtasks array, for each subtask, only subtask name - "name" property is necessary. "task name" and "status" properties will be set by server automatically
+tasksRouter.put("/:id", async (req, res) => {
+    // id should be of previous name of task
+    const heading = req.params.id;
+
+    // new properties of existing task
+    const newHeading = req.body.heading;
+    const newDescription = req.body.description;
+    const newSubtasks = req.body.subtasks;
+    const currentStatus = req.body["current status"];
+
+    try {
+        const data = await readFile(TASKS_FILE);
+
+        // Find task by previous heading
+        const task = data.filter(task => task.heading === heading)[0];
+
+        // Change task
+        task.heading = newHeading;
+        task.description = newDescription;
+        newSubtasks.map(item => { // Set "task name" and "status" properties automatically - it should not happen in client side, it is happening here in backend
+            item["task name"] = newHeading;
+            item["status"] = "Not completed";
+        });
+        task.subtasks = newSubtasks;
+        task["subtasks count"] = newSubtasks.length; // This is automatically updated here, not in client side
+        task["number of completed subtasks"] = 0; // This is also updated here, it is set to 0 because none of new subtasks could be completed when they are added
+        task["current status"] = currentStatus;
+
+        // Save changes to database
+        await writeFile(TASKS_FILE, data);
+
+        return res.status(200).send("Task successfully updated");
+    } catch (e) {
+        return res.status(400).send(`Error on request: ${e}`)
+    }
+})
+
+// Task's delete request
+// It is completed by ID
+tasksRouter.delete("/:id", async (req, res) => {
+    const heading = req.params.id;
+    try {
+        let data = await readFile(TASKS_FILE);
+
+        // Find task by heading
+        const task = data.filter(task => task.heading === heading);
+        const ind = data.indexOf(task[0]);
+
+        // Task not found
+        if (task.length === 0) {
+            return res.status(404).send("Task does not exist")
+        }
+
+        // Delete task from tasks
+        data.splice(ind, 1);
+
+        // Save changes to database
+        await writeFile(TASKS_FILE, data);
+
+        res.status(200).send("Task successfully deleted");
+    } catch (e) {
+        return res.status(400).send(`Error on request: ${e}`)
     }
 })
